@@ -1,0 +1,21 @@
+name: Assemble meal options feature
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: write
+  issues: read
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: meal-options-costs
+          fetch-depth: 0
+      - run: bash .github/apply_payload.sh
