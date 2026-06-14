@@ -1,0 +1,21 @@
+name: Apply meal options feature
+
+on:
+  push:
+    branches: [meal-options-costs]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: meal-options-costs
+          fetch-depth: 0
+      - run: echo "Feature assembly started"
