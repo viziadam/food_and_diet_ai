@@ -23,10 +23,16 @@ export interface MacroSummary {
 }
 
 export interface PlannedIngredient {
+  ingredient_id: number
   name: string
   quantity_grams: number
   display_quantity: string
   estimated_cost_huf: number
+  package_size_grams: number
+  package_price_huf: number
+  price_store: string
+  price_source: string
+  price_checked_at: string | null
   seasonal: boolean
 }
 
@@ -41,33 +47,68 @@ export interface PlannedMeal {
   cook_minutes: number
   nutrition_per_person: MacroSummary
   estimated_cost_huf: number
+  purchase_cost_huf: number
   seasonal_ratio: number
   ingredients: PlannedIngredient[]
   instructions: string[]
 }
 
+export interface MealOptionGroup {
+  meal_type: MealType
+  recommended_recipe_id: number
+  options: PlannedMeal[]
+}
+
 export interface ShoppingListItem {
+  ingredient_id: number
   name: string
-  quantity_grams: number
-  estimated_cost_huf: number
+  required_quantity_grams: number
+  package_size_grams: number
+  package_price_huf: number
+  packages_to_buy: number
+  purchase_quantity_grams: number
+  proportional_cost_huf: number
+  purchase_cost_huf: number
+  leftover_after_plan_grams: number
+  price_store: string
+  price_source: string
+  price_checked_at: string | null
   seasonal: boolean
+}
+
+export interface PlanSummary {
+  people_count: number
+  calories_per_person: number
+  calorie_target_per_person: number
+  proportional_total_cost_huf: number
+  full_purchase_total_cost_huf: number
+  shopping_total_cost_huf: number
+  estimated_total_cost_huf: number
+  budget_huf: number
+  budget_difference_huf: number
+  protein_per_person_g: number
+  carbs_per_person_g: number
+  fat_per_person_g: number
+  seasonal_ingredient_ratio: number
 }
 
 export interface MealPlanResponse {
   id: string
-  summary: {
-    people_count: number
-    calories_per_person: number
-    calorie_target_per_person: number
-    estimated_total_cost_huf: number
-    budget_huf: number
-    budget_difference_huf: number
-    protein_per_person_g: number
-    carbs_per_person_g: number
-    fat_per_person_g: number
-    seasonal_ingredient_ratio: number
-  }
+  summary: PlanSummary
   meals: PlannedMeal[]
+  meal_options: MealOptionGroup[]
   shopping_list: ShoppingListItem[]
   notices: string[]
 }
+
+export interface DerivedShoppingListItem extends ShoppingListItem {
+  is_owned: boolean
+}
+
+export interface DerivedPlanSelection {
+  selectedMeals: PlannedMeal[]
+  shoppingList: DerivedShoppingListItem[]
+  summary: PlanSummary
+}
+
+export type MealSelectionMap = Partial<Record<MealType, number>>
