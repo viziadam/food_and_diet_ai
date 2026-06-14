@@ -4,7 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
 from itertools import product
-from math import inf
+from math import ceil, inf
 
 from app.core.exceptions import DomainError
 from app.modules.catalog.models import Recipe
@@ -21,6 +21,7 @@ from app.modules.planning.schemas import (
     PlannedMeal,
     PlanSummary,
     ShoppingListItem,
+    CostCalculationMode,
 )
 
 CALORIE_SHARE: dict[MealType, float] = {
@@ -111,12 +112,199 @@ class RuleBasedPlanner:
         return sorted(
             filtered, key=lambda recipe: abs(self._metrics(recipe).calories_per_serving - target)
         )
+    
+    def _aggregate_required_ingredients(
+        self,
+        request: MealPlanRequest,
+        recipes: tuple[Recipe, ...],
+    ) -> dict[int, dict[str, object]]:
+        aggregated: dict[int, dict[str, object]] = {}
+
+        for recipe in recipes:
+            scale = request.people_count / recipe.default_servings
+
+            for link in recipe.ingredients:
+                ingredient = link.ingredient
+                quantity = link.quantity_grams * scale
+
+                if ingredient.id not in aggregated:
+                    aggregated[ingredient.id] = {
+                        "ingredient": ingredient,
+                        "quantity": 0.0,
+                    }
+
+                aggregated[ingredient.id]["quantity"] = (
+                    float(aggregated[ingredient.id]["quantity"])
+                    + quantity
+                )
+
+        return aggregated
+    
+    def _build_shopping_list(
+        self,
+        request: MealPlanRequest,
+        recipes: tuple[Recipe, ...],
+    ) -> list[ShoppingListItem]:
+        month = date.today().month
+
+        aggregated = self._aggregate_required_ingredients(
+            request,
+            recipes,
+        )
+
+        pantry_by_ingredient = {
+            item.ingredient_id: item.quantity_grams
+            for item in request.pantry_items
+        }
+
+        shopping_items: list[ShoppingListItem] = []
+
+        for ingredient_id, data in aggregated.items():
+            ingredient = data["ingredient"]
+            required_quantity = round(
+                float(data["quantity"]),
+                1,
+            )
+
+            if (
+                request.cost_calculation_mode
+                is CostCalculationMode.PANTRY_AWARE
+            ):
+                pantry_quantity = pantry_by_ingredient.get(
+                    ingredient_id,
+                    0.0,
+                )
+            else:
+                pantry_quantity = 0.0
+
+            pantry_used = min(
+                required_quantity,
+                pantry_quantity,
+            )
+
+            missing_quantity = max(
+                required_quantity - pantry_used,
+                0.0,
+            )
+
+            proportional_cost = round(
+                required_quantity
+                * self._price_per_gram(ingredient)
+            )
+
+            packages_to_buy: int | None
+            purchase_quantity: float | None
+            purchase_cost: int | None
+            leftover_after_plan: float | None
+
+            if (
+                request.cost_calculation_mode
+                is CostCalculationMode.PROPORTIONAL
+            ):
+                packages_to_buy = None
+                purchase_quantity = None
+                purchase_cost = None
+                leftover_after_plan = None
+            else:
+                if missing_quantity > 0:
+                    packages_to_buy = ceil(
+                        missing_quantity
+                        / ingredient.package_size_grams
+                    )
+                else:
+                    packages_to_buy = 0
+
+                purchase_quantity = (
+                    packages_to_buy
+                    * ingredient.package_size_grams
+                )
+
+                purchase_cost = (
+                    packages_to_buy
+                    * ingredient.package_price_huf
+                )
+
+                leftover_after_plan = round(
+                    pantry_quantity
+                    + purchase_quantity
+                    - required_quantity,
+                    1,
+                )
+
+            seasonal = (
+                not ingredient.seasonal_months
+                or month in ingredient.seasonal_months
+            )
+
+            shopping_items.append(
+                ShoppingListItem(
+                    ingredient_id=ingredient.id,
+                    name=ingredient.name,
+                    required_quantity_grams=required_quantity,
+                    pantry_quantity_grams=round(
+                        pantry_quantity,
+                        1,
+                    ),
+                    pantry_used_grams=round(
+                        pantry_used,
+                        1,
+                    ),
+                    missing_quantity_grams=round(
+                        missing_quantity,
+                        1,
+                    ),
+                    package_size_grams=ingredient.package_size_grams,
+                    package_price_huf=ingredient.package_price_huf,
+                    packages_to_buy=packages_to_buy,
+                    purchase_quantity_grams=purchase_quantity,
+                    purchase_cost_huf=purchase_cost,
+                    leftover_after_plan_grams=leftover_after_plan,
+                    proportional_cost_huf=proportional_cost,
+                    price_store=ingredient.price_store,
+                    price_source=ingredient.price_source,
+                    price_checked_at=ingredient.price_checked_at,
+                    seasonal=seasonal,
+                )
+            )
+
+        return sorted(
+            shopping_items,
+            key=lambda item: item.name.casefold(),
+        )
+    
+    def _combination_cost(
+        self,
+        request: MealPlanRequest,
+        recipes: tuple[Recipe, ...],
+    ) -> float:
+        shopping_list = self._build_shopping_list(
+            request,
+            recipes,
+        )
+
+        if (
+            request.cost_calculation_mode
+            is CostCalculationMode.PROPORTIONAL
+        ):
+            return float(
+                sum(
+                    item.proportional_cost_huf
+                    for item in shopping_list
+                )
+            )
+
+        return float(
+            sum(
+                item.purchase_cost_huf or 0
+                for item in shopping_list
+            )
+        )
 
     def _score_combination(self, request: MealPlanRequest, recipes: tuple[Recipe, ...]) -> float:
         metrics = [self._metrics(recipe) for recipe in recipes]
         calories = sum(item.calories_per_serving for item in metrics)
         protein = sum(item.protein_per_serving for item in metrics)
-        household_cost = sum(item.cost_per_serving for item in metrics) * request.people_count
+        household_cost = self._combination_cost(request, recipes)
         seasonal = sum(item.seasonal_ratio for item in metrics) / len(metrics)
 
         score = abs(calories - request.calorie_target_per_person) * 1.4
@@ -266,6 +454,19 @@ class RuleBasedPlanner:
             DietaryPreference.GLUTEN_FREE: "gluten_free",
         }
         return {mapping[item] for item in preferences}
+    
+    @staticmethod
+    def _price_per_gram(ingredient) -> float:
+        if (
+            ingredient.package_size_grams > 0
+            and ingredient.package_price_huf > 0
+        ):
+            return (
+                ingredient.package_price_huf
+                / ingredient.package_size_grams
+            )
+
+        return ingredient.price_per_100g_huf / 100
 
     @staticmethod
     def _metrics(recipe: Recipe) -> RecipeMetrics:
@@ -277,7 +478,7 @@ class RuleBasedPlanner:
             protein += ingredient.protein_per_100g * multiplier
             carbs += ingredient.carbs_per_100g * multiplier
             fat += ingredient.fat_per_100g * multiplier
-            cost += ingredient.price_per_100g_huf * multiplier
+            cost += (link.quantity_grams* RuleBasedPlanner._price_per_gram(ingredient))
         servings = max(recipe.default_servings, 1)
         return RecipeMetrics(
             calories_per_serving=calories / servings,

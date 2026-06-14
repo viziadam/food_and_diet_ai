@@ -59,9 +59,56 @@ def seed_demo_data(session: Session) -> None:
         "mozzarella": ("mozzarella", "tejtermek", 280, 22.0, 3.0, 21.0, 220, [], ["milk"]),
         "gomba": ("csiperkegomba", "zoldseg", 22, 3.1, 3.3, 0.3, 120, [9, 10, 11], []),
     }
+    package_data: dict[str, tuple[float, int]] = {
+        "zabpehely": (500, 210),
+        "tej": (1000, 480),
+        "gorog-joghurt": (400, 480),
+        "alma": (1000, 700),
+        "banan": (1000, 850),
+        "tojas": (500, 525),
+        "paradicsom": (1000, 950),
+        "paprika": (1000, 1100),
+        "csirkemell": (1000, 2550),
+        "rizs": (1000, 650),
+        "voroshagyma": (1000, 450),
+        "tejfol": (330, 314),
+        "teljes-kiorlesu-teszta": (500, 410),
+        "passata": (500, 390),
+        "olivaolaj": (500, 950),
+        "voroslencse": (500, 475),
+        "sargarepa": (1000, 450),
+        "burgonya": (2500, 1250),
+        "cukkini": (1000, 900),
+        "kuszkusz": (500, 440),
+        "csicseriborso": (400, 288),
+        "feta": (200, 360),
+        "turo": (250, 275),
+        "tortilla": (320, 320),
+        "salata": (150, 225),
+        "mozzarella": (125, 275),
+        "gomba": (500, 600),
+    }
     ingredients: dict[str, Ingredient] = {}
+
     for slug, values in ingredient_data.items():
-        name, category, kcal, protein, carbs, fat, price, months, allergens = values
+        (
+            name,
+            category,
+            kcal,
+            protein,
+            carbs,
+            fat,
+            _legacy_price,
+            months,
+            allergens,
+        ) = values
+
+        package_size_grams, package_price_huf = package_data[slug]
+
+        normalized_price_per_100g = (
+            package_price_huf / package_size_grams * 100
+        )
+
         ingredient = Ingredient(
             slug=slug,
             name=name,
@@ -70,12 +117,19 @@ def seed_demo_data(session: Session) -> None:
             protein_per_100g=protein,
             carbs_per_100g=carbs,
             fat_per_100g=fat,
-            price_per_100g_huf=price,
+            price_per_100g_huf=round(normalized_price_per_100g, 2),
+            package_size_grams=package_size_grams,
+            package_price_huf=package_price_huf,
+            price_store="MVP demo",
+            price_source="Kézi mintaadat, production előtt frissítendő",
+            price_checked_at=None,
             seasonal_months=months,
             allergens=allergens,
         )
+
         ingredients[slug] = ingredient
         session.add(ingredient)
+
     session.flush()
 
     recipes: list[dict[str, Any]] = [

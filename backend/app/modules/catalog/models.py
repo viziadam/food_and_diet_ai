@@ -1,4 +1,6 @@
 from __future__ import annotations
+from datetime import date, datetime
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
 
 from datetime import datetime
 from typing import Any
@@ -16,15 +18,52 @@ class Ingredient(Base):
     slug: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120), unique=True)
     category: Mapped[str] = mapped_column(String(60))
+
     kcal_per_100g: Mapped[float] = mapped_column(Float)
     protein_per_100g: Mapped[float] = mapped_column(Float)
     carbs_per_100g: Mapped[float] = mapped_column(Float)
     fat_per_100g: Mapped[float] = mapped_column(Float)
-    price_per_100g_huf: Mapped[float] = mapped_column(Float)
-    seasonal_months: Mapped[list[int]] = mapped_column(JSON, default=list)
-    allergens: Mapped[list[str]] = mapped_column(JSON, default=list)
 
-    recipe_links: Mapped[list[RecipeIngredient]] = relationship(back_populates="ingredient")
+    price_per_100g_huf: Mapped[float] = mapped_column(Float)
+
+    package_size_grams: Mapped[float] = mapped_column(
+        Float,
+        default=100.0,
+    )
+
+    package_price_huf: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+    )
+
+    price_store: Mapped[str] = mapped_column(
+        String(100),
+        default="MVP demo",
+    )
+
+    price_source: Mapped[str] = mapped_column(
+        String(255),
+        default="Kézi mintaadat",
+    )
+
+    price_checked_at: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True,
+    )
+
+    seasonal_months: Mapped[list[int]] = mapped_column(
+        JSON,
+        default=list,
+    )
+
+    allergens: Mapped[list[str]] = mapped_column(
+        JSON,
+        default=list,
+    )
+
+    recipe_links: Mapped[list["RecipeIngredient"]] = relationship(
+        back_populates="ingredient"
+    )
 
 
 class Recipe(Base):
