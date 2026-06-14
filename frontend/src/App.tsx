@@ -33,12 +33,12 @@ function App() {
             <p className="eyebrow">Tudatos étkezés, valós keretek között</p>
             <h1>Az étrended igazodjon hozzád, ne fordítva.</h1>
             <p className="hero-lead">
-              Állíts össze egy személyre szabott napi tervet magyar alapanyagokból,
-              szezonális választásokkal, becsült költséggel és használható bevásárlólistával.
+              Állíts össze személyre szabott napi tervet magyar alapanyagokból,
+              három receptválasztással, csomagalapú árakkal és interaktív bevásárlólistával.
             </p>
             <div className="hero-points" aria-label="Fő előnyök">
-              <span>Célhoz igazított adagok</span>
-              <span>Átlátható költségbecslés</span>
+              <span>Három recept étkezésenként</span>
+              <span>Három költségnézet</span>
               <span>Mobilon is kényelmes</span>
             </div>
           </div>
@@ -46,15 +46,15 @@ function App() {
             <span className="hero-panel-label">Minta napi terv</span>
             <strong>1 846 kcal</strong>
             <div className="macro-row"><span>Fehérje</span><b>112 g</b></div>
-            <div className="macro-row"><span>Becsült költség</span><b>4 380 Ft</b></div>
-            <div className="macro-row"><span>Szezonális arány</span><b>74%</b></div>
+            <div className="macro-row"><span>Arányos költség</span><b>2 180 Ft</b></div>
+            <div className="macro-row"><span>Teljes vásárlás</span><b>4 380 Ft</b></div>
           </aside>
         </section>
 
         <section className="trust-strip" aria-label="A tervező működése">
           <div><b>1.</b><span>Add meg a céljaidat</span></div>
-          <div><b>2.</b><span>A rendszer ellenőrzött recepteket választ</span></div>
-          <div><b>3.</b><span>Megkapod az étrendet és a listát</span></div>
+          <div><b>2.</b><span>Válassz a receptalternatívákból</span></div>
+          <div><b>3.</b><span>Jelöld, ami már otthon van</span></div>
         </section>
 
         <section id="planner" className="planner-section section-frame">
@@ -74,7 +74,7 @@ function App() {
         </section>
 
         <div ref={setResultAnchor}>
-          {generatePlan.data && <PlanView plan={generatePlan.data} />}
+          {generatePlan.data && <PlanView key={generatePlan.data.id} plan={generatePlan.data} />}
         </div>
       </main>
 
