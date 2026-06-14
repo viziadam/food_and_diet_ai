@@ -13,9 +13,11 @@ jobs:
   apply:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: meal-options-costs
           fetch-depth: 0
-      - run: echo "Feature assembly started"
+      - run: bash .github/apply_payload.sh
